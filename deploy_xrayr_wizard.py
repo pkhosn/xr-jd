@@ -130,6 +130,94 @@ def parse_nodes(lines: List[str]) -> Tuple[List[Dict], Dict[str, int]]:
     return nodes, skipped
 
 
+def _clean_yaml_scalar(v: str) -> str:
+    s = v.strip()
+    if " #" in s:
+        s = s.split(" #", 1)[0].strip()
+    if (s.startswith('"') and s.endswith('"')) or (s.startswith("'") and s.endswith("'")):
+        s = s[1:-1]
+    return s.strip()
+
+
+def parse_mihomo_yaml_vmess(raw: str) -> List[Dict]:
+    lines = raw.splitlines()
+    in_proxies = False
+    proxy_lines: List[str] = []
+    for line in lines:
+        if not in_proxies:
+            if re.match(r"^\s*proxies\s*:\s*$", line):
+                in_proxies = True
+            continue
+        if re.match(r"^[A-Za-z0-9_-]+\s*:\s*$", line):
+            break
+        proxy_lines.append(line)
+
+    if not proxy_lines:
+        return []
+
+    blocks: List[str] = []
+    cur: List[str] = []
+    for line in proxy_lines:
+        if re.match(r"^\s*-\s+name\s*:", line):
+            if cur:
+                blocks.append("\n".join(cur))
+            cur = [line]
+        elif cur:
+            cur.append(line)
+    if cur:
+        blocks.append("\n".join(cur))
+
+    out: List[Dict] = []
+    for b in blocks:
+        def g(pat: str) -> str:
+            m = re.search(pat, b, flags=re.IGNORECASE | re.MULTILINE)
+            return _clean_yaml_scalar(m.group(1)) if m else ""
+
+        ptype = g(r"^\s*type\s*:\s*([^\n]+)")
+        if ptype.lower() != "vmess":
+            continue
+
+        add = g(r"^\s*server\s*:\s*([^\n]+)")
+        port_s = g(r"^\s*port\s*:\s*([^\n]+)")
+        uid = g(r"^\s*uuid\s*:\s*([^\n]+)")
+        if not add or not port_s or not uid:
+            continue
+
+        try:
+            port = int(port_s)
+        except Exception:
+            continue
+
+        ps = g(r"^\s*name\s*:\s*([^\n]+)")
+        net = g(r"^\s*network\s*:\s*([^\n]+)") or "tcp"
+        tls_v = g(r"^\s*tls\s*:\s*([^\n]+)").lower()
+        tls = "tls" if tls_v in ("true", "1", "tls", "yes", "on") else ""
+        path = g(r"^\s*path\s*:\s*([^\n]+)") or "/"
+        host = g(r"^\s*Host\s*:\s*([^\n]+)") or g(r"^\s*host\s*:\s*([^\n]+)")
+        aid_s = g(r"^\s*alterId\s*:\s*([^\n]+)") or g(r"^\s*alter-id\s*:\s*([^\n]+)") or "0"
+        try:
+            aid = int(aid_s)
+        except Exception:
+            aid = 0
+
+        out.append(
+            {
+                "protocol": "vmess",
+                "ps": ps,
+                "add": add,
+                "port": port,
+                "id": uid,
+                "aid": aid,
+                "net": net,
+                "path": path,
+                "host": host,
+                "tls": tls,
+            }
+        )
+
+    return out
+
+
 def pick_nodes(nodes: List[Dict], count: int, manual_indices: Optional[List[int]]) -> List[Dict]:
     if manual_indices:
         picked = []
@@ -406,15 +494,24 @@ def main() -> int:
             return 1
 
     print(f"[info] Fetching subscription: {mask_secret(args.sub_url)}")
+    yaml_nodes: List[Dict] = []
     try:
         raw = fetch_text(args.sub_url)
         lines = decode_subscription(raw)
         nodes, skipped = parse_nodes(lines)
+        yaml_nodes = parse_mihomo_yaml_vmess(raw)
+        if yaml_nodes:
+            nodes.extend(yaml_nodes)
     except Exception as ex:
         eprint(f"[err] subscription parse failed: {ex}")
         return 1
 
-    print(f"[info] parsed vmess nodes: {len(nodes)}, skipped vmess-decode: {skipped['vmess']}, skipped-other-protocol: {skipped['other']}")
+    print(
+        f"[info] parsed vmess nodes: {len(nodes)}, "
+        f"from-vmess-links: {len(nodes) - len(yaml_nodes)}, "
+        f"from-yaml-proxies: {len(yaml_nodes)}, "
+        f"skipped vmess-decode: {skipped['vmess']}, skipped-other-protocol: {skipped['other']}"
+    )
     if not nodes:
         eprint("[err] no vmess nodes parsed")
         return 1

@@ -14,7 +14,7 @@
 脚本会完成以下事情：
 
 1. 检测 XRayR 是否安装（未安装则执行一键脚本）
-2. 拉取上游订阅并解析（v1 仅支持 `vmess://`）
+2. 拉取上游订阅并解析（支持 `vmess://` 与 Mihomo/Clash YAML 中的 `type: vmess`）
 3. 根据你输入的端口和 NodeID 生成：
    - `/etc/XrayR/config.yml`
    - `/etc/XrayR/custom_outbound.json`
