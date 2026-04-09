@@ -22,9 +22,31 @@
 
 ---
 
-## 2. 快速开始（最推荐）
+## 2. 新服务器首次准备（先做这个）
 
-### 2.1 交互模式
+很多新 VPS 默认没有 `python3`，请先执行：
+
+```bash
+sudo bash bootstrap.sh
+```
+
+该脚本会自动安装：
+- `python3`
+- `curl`
+- `ca-certificates`
+
+然后检查版本：
+
+```bash
+python3 --version
+curl --version
+```
+
+---
+
+## 3. 快速开始（最推荐）
+
+### 4.1 交互模式
 直接运行：
 
 ```bash
@@ -44,9 +66,9 @@ python3 deploy_xrayr_wizard.py
 
 ---
 
-## 3. 命令行模式
+## 4. 命令行模式
 
-### 3.1 仅生成文件（不改系统）
+### 4.1 仅生成文件（不改系统）
 
 ```bash
 python3 deploy_xrayr_wizard.py \
@@ -61,7 +83,7 @@ python3 deploy_xrayr_wizard.py \
   --output-dir ./generated
 ```
 
-### 3.2 直接应用到系统
+### 4.2 直接应用到系统
 
 ```bash
 sudo python3 deploy_xrayr_wizard.py \
@@ -77,7 +99,7 @@ sudo python3 deploy_xrayr_wizard.py \
 
 ---
 
-## 4. 回滚
+## 5. 回滚
 回滚到最近一次备份：
 
 ```bash
@@ -92,7 +114,7 @@ sudo python3 deploy_xrayr_wizard.py --rollback
 
 ---
 
-## 5. 参数说明
+## 6. 参数说明
 
 - `--api-host`：面板地址
 - `--api-key`：面板密钥（敏感）
@@ -110,7 +132,7 @@ sudo python3 deploy_xrayr_wizard.py --rollback
 
 ---
 
-## 6. 运行后的验证
+## 7. 运行后的验证
 
 ```bash
 systemctl status XrayR --no-pager -l
@@ -128,7 +150,7 @@ journalctl -u XrayR -n 80 --no-pager
 
 ---
 
-## 7. 注意事项
+## 8. 注意事项
 
 1. `--apply` 需要 root 权限。
 2. 脚本会改写：
@@ -140,7 +162,7 @@ journalctl -u XrayR -n 80 --no-pager
 
 ---
 
-## 8. 模板文件（`/root/xrayr-parasitic/`）
+## 9. 模板文件（`/root/xrayr-parasitic/`）
 
 仓库已包含你要求的模板目录：
 
