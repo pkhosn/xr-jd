@@ -12,7 +12,7 @@ import sys
 import textwrap
 import urllib.request
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 INSTALL_SCRIPT_URL = "https://raw.githubusercontent.com/mieba1/XrayR/master/install.sh"
 DEFAULT_ETC = Path("/etc/XrayR")
@@ -130,7 +130,7 @@ def parse_nodes(lines: List[str]) -> Tuple[List[Dict], Dict[str, int]]:
     return nodes, skipped
 
 
-def pick_nodes(nodes: List[Dict], count: int, manual_indices: List[int] | None) -> List[Dict]:
+def pick_nodes(nodes: List[Dict], count: int, manual_indices: Optional[List[int]]) -> List[Dict]:
     if manual_indices:
         picked = []
         for idx in manual_indices:
