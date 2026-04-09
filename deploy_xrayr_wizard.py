@@ -218,6 +218,85 @@ def parse_mihomo_yaml_vmess(raw: str) -> List[Dict]:
     return out
 
 
+def parse_mihomo_yaml_ss(raw: str) -> Tuple[List[Dict], int]:
+    lines = raw.splitlines()
+    in_proxies = False
+    proxy_lines: List[str] = []
+    for line in lines:
+        if not in_proxies:
+            if re.match(r"^\s*proxies\s*:\s*$", line):
+                in_proxies = True
+            continue
+        if re.match(r"^[A-Za-z0-9_-]+\s*:\s*$", line):
+            break
+        proxy_lines.append(line)
+
+    if not proxy_lines:
+        return [], 0
+
+    blocks: List[str] = []
+    cur: List[str] = []
+    for line in proxy_lines:
+        if re.match(r"^\s*-\s+name\s*:", line):
+            if cur:
+                blocks.append("\n".join(cur))
+            cur = [line]
+        elif cur:
+            cur.append(line)
+    if cur:
+        blocks.append("\n".join(cur))
+
+    out: List[Dict] = []
+    skipped_invalid = 0
+    for b in blocks:
+        def g(pat: str) -> str:
+            m = re.search(pat, b, flags=re.IGNORECASE | re.MULTILINE)
+            return _clean_yaml_scalar(m.group(1)) if m else ""
+
+        ptype = g(r"^\s*type\s*:\s*([^\n]+)").lower()
+        if ptype != "ss":
+            continue
+
+        add = g(r"^\s*server\s*:\s*([^\n]+)")
+        port_s = g(r"^\s*port\s*:\s*([^\n]+)")
+        method = g(r"^\s*cipher\s*:\s*([^\n]+)")
+        password = g(r"^\s*password\s*:\s*([^\n]+)")
+        if not add or not port_s or not method or not password:
+            skipped_invalid += 1
+            continue
+
+        try:
+            port = int(port_s)
+        except Exception:
+            skipped_invalid += 1
+            continue
+
+        # Clash/Mihomo 常见 obfs 写法:
+        # plugin: obfs
+        # plugin-opts:
+        #   mode: tls
+        #   host: example.com
+        plugin = g(r"^\s*plugin\s*:\s*([^\n]+)").lower()
+        obfs_mode = g(r"^\s*mode\s*:\s*([^\n]+)").lower()
+        obfs_host = g(r"^\s*host\s*:\s*([^\n]+)")
+
+        out.append(
+            {
+                "protocol": "ss",
+                "ps": g(r"^\s*name\s*:\s*([^\n]+)"),
+                "add": add,
+                "port": port,
+                "method": method,
+                "password": password,
+                "plugin": plugin,
+                "obfs_mode": obfs_mode,
+                "obfs_host": obfs_host,
+            }
+        )
+
+    return out, skipped_invalid
+
+
 def pick_nodes(nodes: List[Dict], count: int, manual_indices: Optional[List[int]]) -> List[Dict]:
     if manual_indices:
         picked = []
@@ -237,35 +316,58 @@ def pick_nodes(nodes: List[Dict], count: int, manual_indices: Optional[List[int]
 def build_outbound(ports: List[int], upstream: List[Dict]) -> List[Dict]:
     out = []
     for port, n in zip(ports, upstream):
-        security = "tls" if n["tls"] == "tls" else "none"
-        item = {
-            "tag": f"up_{port}",
-            "protocol": "vmess",
-            "settings": {
-                "vnext": [
-                    {
-                        "address": n["add"],
-                        "port": n["port"],
-                        "users": [
-                            {
-                                "id": n["id"],
-                                "alterId": n["aid"],
-                                "security": "auto",
-                            }
-                        ],
-                    }
-                ]
-            },
-            "streamSettings": {
-                "network": n["net"],
-                "security": security,
-            },
-        }
-        if n["net"] == "ws":
-            ws = {"path": n["path"] or "/"}
-            if n["host"]:
-                ws["headers"] = {"Host": n["host"]}
-            item["streamSettings"]["wsSettings"] = ws
+        if n.get("protocol") == "ss":
+            server = {
+                "address": n["add"],
+                "port": n["port"],
+                "method": n["method"],
+                "password": n["password"],
+            }
+            # 尝试兼容 simple-obfs。若不支持，后续可在日志中看到连接失败。
+            if n.get("plugin") == "obfs":
+                mode = n.get("obfs_mode") or "tls"
+                host = n.get("obfs_host") or ""
+                opts = f"obfs={mode}"
+                if host:
+                    opts += f";obfs-host={host}"
+                server["plugin"] = "obfs-local"
+                server["pluginOpts"] = opts
+
+            item = {
+                "tag": f"up_{port}",
+                "protocol": "shadowsocks",
+                "settings": {"servers": [server]},
+            }
+        else:
+            security = "tls" if n["tls"] == "tls" else "none"
+            item = {
+                "tag": f"up_{port}",
+                "protocol": "vmess",
+                "settings": {
+                    "vnext": [
+                        {
+                            "address": n["add"],
+                            "port": n["port"],
+                            "users": [
+                                {
+                                    "id": n["id"],
+                                    "alterId": n["aid"],
+                                    "security": "auto",
+                                }
+                            ],
+                        }
+                    ]
+                },
+                "streamSettings": {
+                    "network": n["net"],
+                    "security": security,
+                },
+            }
+            if n["net"] == "ws":
+                ws = {"path": n["path"] or "/"}
+                if n["host"]:
+                    ws["headers"] = {"Host": n["host"]}
+                item["streamSettings"]["wsSettings"] = ws
         out.append(item)
 
     out.extend(
@@ -494,22 +596,29 @@ def main() -> int:
             return 1
 
     print(f"[info] Fetching subscription: {mask_secret(args.sub_url)}")
-    yaml_nodes: List[Dict] = []
+    yaml_vmess_nodes: List[Dict] = []
+    yaml_ss_nodes: List[Dict] = []
+    yaml_ss_skipped = 0
     try:
         raw = fetch_text(args.sub_url)
         lines = decode_subscription(raw)
         nodes, skipped = parse_nodes(lines)
-        yaml_nodes = parse_mihomo_yaml_vmess(raw)
-        if yaml_nodes:
-            nodes.extend(yaml_nodes)
+        yaml_vmess_nodes = parse_mihomo_yaml_vmess(raw)
+        yaml_ss_nodes, yaml_ss_skipped = parse_mihomo_yaml_ss(raw)
+        if yaml_vmess_nodes:
+            nodes.extend(yaml_vmess_nodes)
+        if yaml_ss_nodes:
+            nodes.extend(yaml_ss_nodes)
     except Exception as ex:
         eprint(f"[err] subscription parse failed: {ex}")
         return 1
 
     print(
-        f"[info] parsed vmess nodes: {len(nodes)}, "
-        f"from-vmess-links: {len(nodes) - len(yaml_nodes)}, "
-        f"from-yaml-proxies: {len(yaml_nodes)}, "
+        f"[info] parsed upstream nodes: {len(nodes)}, "
+        f"from-vmess-links: {len(nodes) - len(yaml_vmess_nodes) - len(yaml_ss_nodes)}, "
+        f"from-yaml-vmess: {len(yaml_vmess_nodes)}, "
+        f"from-yaml-ss: {len(yaml_ss_nodes)}, "
+        f"skipped-yaml-ss-invalid: {yaml_ss_skipped}, "
         f"skipped vmess-decode: {skipped['vmess']}, skipped-other-protocol: {skipped['other']}"
     )
     if not nodes:
@@ -517,7 +626,14 @@ def main() -> int:
         return 1
 
     for i, n in enumerate(nodes[:10], 1):
-        print(f"  [{i}] {n.get('ps','')} | {n['add']}:{n['port']} | {n['net']} | tls={n['tls'] or 'none'}")
+        if n.get("protocol") == "ss":
+            plugin = n.get("plugin") or "none"
+            print(
+                f"  [{i}] {n.get('ps','')} | {n['add']}:{n['port']} | "
+                f"ss:{n.get('method','')} | plugin={plugin}"
+            )
+        else:
+            print(f"  [{i}] {n.get('ps','')} | {n['add']}:{n['port']} | {n['net']} | tls={n['tls'] or 'none'}")
 
     try:
         picked = pick_nodes(nodes, len(ports), manual_indices)
