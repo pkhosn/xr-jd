@@ -11,6 +11,7 @@ import subprocess
 import sys
 import textwrap
 import urllib.request
+import urllib.parse
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -32,6 +33,15 @@ def mask_secret(s: str) -> str:
     if len(s) <= 8:
         return "*" * len(s)
     return s[:3] + "***" + s[-3:]
+
+
+def is_bad_upstream_host(host: str) -> bool:
+    h = (host or "").strip().lower()
+    if not h:
+        return True
+    if h in ("127.0.0.1", "localhost", "::1", "0.0.0.0"):
+        return True
+    return False
 
 
 def parse_range_list(value: str) -> List[int]:
@@ -116,15 +126,95 @@ def parse_vmess(line: str) -> Dict:
     }
 
 
+def parse_vless(line: str) -> Dict:
+    u = urllib.parse.urlparse(line)
+    if u.scheme.lower() != "vless":
+        raise ValueError("not vless link")
+    qs = urllib.parse.parse_qs(u.query)
+
+    def q(name: str, default: str = "") -> str:
+        v = qs.get(name, [default])[0]
+        return v or default
+
+    uid = urllib.parse.unquote(u.username or "")
+    host = u.hostname or ""
+    port = int(u.port or 0)
+    if not uid or not host or not port:
+        raise ValueError("invalid vless link")
+
+    return {
+        "protocol": "vless",
+        "ps": urllib.parse.unquote(u.fragment or ""),
+        "add": host,
+        "port": port,
+        "id": uid,
+        "net": q("type", "tcp"),
+        "path": urllib.parse.unquote(q("path", "")),
+        "host": urllib.parse.unquote(q("host", "")),
+        "tls": q("security", "").lower(),  # tls/reality/none
+        "sni": urllib.parse.unquote(q("sni", "")),
+        "flow": q("flow", ""),
+        "fp": q("fp", ""),
+        "pbk": q("pbk", ""),
+        "sid": q("sid", ""),
+    }
+
+
+def parse_hysteria2(line: str) -> Dict:
+    u = urllib.parse.urlparse(line)
+    scheme = u.scheme.lower()
+    if scheme not in ("hysteria2", "hy2"):
+        raise ValueError("not hysteria2 link")
+    qs = urllib.parse.parse_qs(u.query)
+
+    def q(name: str, default: str = "") -> str:
+        v = qs.get(name, [default])[0]
+        return v or default
+
+    password = urllib.parse.unquote(u.username or "")
+    host = u.hostname or ""
+    port = int(u.port or 0)
+    if not password or not host or not port:
+        raise ValueError("invalid hysteria2 link")
+
+    insecure_v = q("insecure", "0").lower()
+    insecure = insecure_v in ("1", "true", "yes", "on")
+    sni = urllib.parse.unquote(q("sni", ""))
+    obfs = q("obfs", "")
+    obfs_pwd = q("obfs-password", "")
+
+    return {
+        "protocol": "hysteria2",
+        "ps": urllib.parse.unquote(u.fragment or ""),
+        "add": host,
+        "port": port,
+        "password": password,
+        "sni": sni,
+        "insecure": insecure,
+        "obfs": obfs,
+        "obfs_password": obfs_pwd,
+    }
+
+
 def parse_nodes(lines: List[str]) -> Tuple[List[Dict], Dict[str, int]]:
     nodes: List[Dict] = []
-    skipped = {"vmess": 0, "other": 0}
+    skipped = {"vmess": 0, "vless": 0, "hy2": 0, "other": 0}
     for l in lines:
         if l.startswith("vmess://"):
             try:
                 nodes.append(parse_vmess(l))
             except Exception:
                 skipped["vmess"] += 1
+        elif l.startswith("vless://"):
+            try:
+                nodes.append(parse_vless(l))
+            except Exception:
+                skipped["vless"] += 1
+        elif l.startswith("hysteria2://") or l.startswith("hy2://"):
+            try:
+                nodes.append(parse_hysteria2(l))
+            except Exception:
+                skipped["hy2"] += 1
         else:
             skipped["other"] += 1
     return nodes, skipped
@@ -339,35 +429,99 @@ def build_outbound(ports: List[int], upstream: List[Dict]) -> List[Dict]:
                 "settings": {"servers": [server]},
             }
         else:
-            security = "tls" if n["tls"] == "tls" else "none"
-            item = {
-                "tag": f"up_{port}",
-                "protocol": "vmess",
-                "settings": {
-                    "vnext": [
-                        {
-                            "address": n["add"],
-                            "port": n["port"],
-                            "users": [
-                                {
-                                    "id": n["id"],
-                                    "alterId": n["aid"],
-                                    "security": "auto",
-                                }
-                            ],
-                        }
-                    ]
-                },
-                "streamSettings": {
-                    "network": n["net"],
-                    "security": security,
-                },
-            }
-            if n["net"] == "ws":
-                ws = {"path": n["path"] or "/"}
-                if n["host"]:
-                    ws["headers"] = {"Host": n["host"]}
-                item["streamSettings"]["wsSettings"] = ws
+            if n.get("protocol") == "hysteria2":
+                item = {
+                    "tag": f"up_{port}",
+                    "protocol": "hysteria2",
+                    "settings": {
+                        "server": f"{n['add']}:{n['port']}",
+                        "password": n["password"],
+                    },
+                    "streamSettings": {
+                        "security": "tls",
+                        "tlsSettings": {
+                            "serverName": n.get("sni") or n["add"],
+                            "insecure": bool(n.get("insecure", False)),
+                        },
+                    },
+                }
+                if n.get("obfs") and n.get("obfs_password"):
+                    item["settings"]["obfs"] = {
+                        "type": n["obfs"],
+                        "password": n["obfs_password"],
+                    }
+            elif n.get("protocol") == "vless":
+                security = n.get("tls", "none")
+                if security in ("", "none"):
+                    security = "none"
+                user = {"id": n["id"], "encryption": "none"}
+                if n.get("flow"):
+                    user["flow"] = n["flow"]
+                item = {
+                    "tag": f"up_{port}",
+                    "protocol": "vless",
+                    "settings": {
+                        "vnext": [
+                            {
+                                "address": n["add"],
+                                "port": n["port"],
+                                "users": [user],
+                            }
+                        ]
+                    },
+                    "streamSettings": {
+                        "network": n.get("net", "tcp"),
+                        "security": security,
+                    },
+                }
+                if n.get("net") == "ws":
+                    ws = {"path": n.get("path") or "/"}
+                    if n.get("host"):
+                        ws["headers"] = {"Host": n["host"]}
+                    item["streamSettings"]["wsSettings"] = ws
+                if security == "tls":
+                    item["streamSettings"]["tlsSettings"] = {
+                        "serverName": n.get("sni") or n.get("host") or n["add"]
+                    }
+                if security == "reality":
+                    rs = {"serverName": n.get("sni") or n["add"]}
+                    if n.get("fp"):
+                        rs["fingerprint"] = n["fp"]
+                    if n.get("pbk"):
+                        rs["publicKey"] = n["pbk"]
+                    if n.get("sid"):
+                        rs["shortId"] = n["sid"]
+                    item["streamSettings"]["realitySettings"] = rs
+            else:
+                security = "tls" if n["tls"] == "tls" else "none"
+                item = {
+                    "tag": f"up_{port}",
+                    "protocol": "vmess",
+                    "settings": {
+                        "vnext": [
+                            {
+                                "address": n["add"],
+                                "port": n["port"],
+                                "users": [
+                                    {
+                                        "id": n["id"],
+                                        "alterId": n["aid"],
+                                        "security": "auto",
+                                    }
+                                ],
+                            }
+                        ]
+                    },
+                    "streamSettings": {
+                        "network": n["net"],
+                        "security": security,
+                    },
+                }
+                if n["net"] == "ws":
+                    ws = {"path": n["path"] or "/"}
+                    if n["host"]:
+                        ws["headers"] = {"Host": n["host"]}
+                    item["streamSettings"]["wsSettings"] = ws
         out.append(item)
 
     out.extend(
@@ -616,16 +770,24 @@ def main() -> int:
         eprint(f"[err] subscription parse failed: {ex}")
         return 1
 
+    before_filter = len(nodes)
+    nodes = [n for n in nodes if not is_bad_upstream_host(n.get("add", ""))]
+    dropped_bad_host = before_filter - len(nodes)
+
     print(
         f"[info] parsed upstream nodes: {len(nodes)}, "
-        f"from-vmess-links: {len(nodes) - len(yaml_vmess_nodes) - len(yaml_ss_nodes)}, "
+        f"from-links: {len(nodes) - len(yaml_vmess_nodes) - len(yaml_ss_nodes)}, "
         f"from-yaml-vmess: {len(yaml_vmess_nodes)}, "
         f"from-yaml-ss: {len(yaml_ss_nodes)}, "
         f"skipped-yaml-ss-invalid: {yaml_ss_skipped}, "
-        f"skipped vmess-decode: {skipped['vmess']}, skipped-other-protocol: {skipped['other']}"
+        f"dropped-bad-host: {dropped_bad_host}, "
+        f"skipped vmess-decode: {skipped['vmess']}, "
+        f"skipped vless-decode: {skipped['vless']}, "
+        f"skipped hy2-decode: {skipped['hy2']}, "
+        f"skipped-other-protocol: {skipped['other']}"
     )
     if not nodes:
-        eprint("[err] no vmess nodes parsed")
+        eprint("[err] no supported nodes parsed (vmess/vless/ss-yaml)")
         return 1
 
     for i, n in enumerate(nodes[:10], 1):
@@ -634,6 +796,16 @@ def main() -> int:
             print(
                 f"  [{i}] {n.get('ps','')} | {n['add']}:{n['port']} | "
                 f"ss:{n.get('method','')} | plugin={plugin}"
+            )
+        elif n.get("protocol") == "vless":
+            print(
+                f"  [{i}] {n.get('ps','')} | {n['add']}:{n['port']} | "
+                f"vless:{n.get('net','tcp')} | security={n.get('tls','none') or 'none'}"
+            )
+        elif n.get("protocol") == "hysteria2":
+            print(
+                f"  [{i}] {n.get('ps','')} | {n['add']}:{n['port']} | "
+                f"hy2 | sni={n.get('sni','') or n['add']} | insecure={int(bool(n.get('insecure', False)))}"
             )
         else:
             print(f"  [{i}] {n.get('ps','')} | {n['add']}:{n['port']} | {n['net']} | tls={n['tls'] or 'none'}")
