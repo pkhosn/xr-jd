@@ -6,6 +6,7 @@
 - 自动安装 XRayR（调用一键脚本）
 - 自动生成并应用 3 个核心配置文件
 - 自动备份与回滚
+- 傻瓜式一键入口（`quick_start.sh`）
 
 ---
 
@@ -46,7 +47,30 @@ curl --version
 
 ## 3. 快速开始（最推荐）
 
-### 4.1 交互模式
+### 3.0 傻瓜式一键（推荐）
+
+```bash
+bash quick_start.sh
+```
+
+说明：
+- 自动检查并安装依赖（缺什么装什么）
+- 自动进入交互式向导
+- 默认按 `--apply` 执行，直接写入 `/etc/XrayR` 并重启服务
+
+如果你要命令行自动化，也可以直接透传参数：
+
+```bash
+bash quick_start.sh --non-interactive --api-host https://panel.example.com --api-key YOUR_SERVER_TOKEN --node-ids 5 --node-type V2ray --ports 26210 --sub-url 'https://example.com/sub?token=xxx' --apply
+```
+
+新 VPS 可直接一条命令：
+
+```bash
+git clone https://github.com/pkhosn/xr-jd.git && cd xr-jd && bash quick_start.sh
+```
+
+### 3.1 交互模式
 直接运行：
 
 ```bash
