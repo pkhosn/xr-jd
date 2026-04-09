@@ -1,0 +1,39 @@
+[
+  {
+    "tag": "up_26210", // 关键：上游出口标签，route.json 会引用
+    "protocol": "vmess", // 上游协议
+    "settings": {
+      "vnext": [
+        {
+          "address": "upstream-a.example.com", // 上游地址
+          "port": 16617, // 上游端口
+          "users": [
+            {
+              "id": "UPSTREAM_UUID", // 上游UUID
+              "alterId": 0,
+              "security": "auto"
+            }
+          ]
+        }
+      ]
+    },
+    "streamSettings": {
+      "network": "ws", // 上游传输层
+      "security": "none", // 非 tls
+      "wsSettings": {
+        "path": "/", // 上游 ws path
+        "headers": {
+          "Host": "upstream-host.example.com" // 上游 ws host
+        }
+      }
+    }
+  },
+  {
+    "tag": "IPv4_out", // 默认直连出口
+    "protocol": "freedom"
+  },
+  {
+    "tag": "block", // 黑洞出口
+    "protocol": "blackhole"
+  }
+]

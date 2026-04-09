@@ -1,0 +1,184 @@
+[
+  {
+    "tag": "up_26210",
+    "protocol": "vmess",
+    "settings": {
+      "vnext": [
+        {
+          "address": "upstream-a.example.com",
+          "port": 16617,
+          "users": [
+            {
+              "id": "UPSTREAM_UUID",
+              "alterId": 0,
+              "security": "auto"
+            }
+          ]
+        }
+      ]
+    },
+    "streamSettings": {
+      "network": "ws",
+      "security": "none",
+      "wsSettings": {
+        "path": "/",
+        "headers": {
+          "Host": "upstream-host.example.com"
+        }
+      }
+    }
+  },
+  {
+    "tag": "up_26211",
+    "protocol": "vmess",
+    "settings": {
+      "vnext": [
+        {
+          "address": "upstream-b.example.com",
+          "port": 16617,
+          "users": [
+            {
+              "id": "UPSTREAM_UUID",
+              "alterId": 0,
+              "security": "auto"
+            }
+          ]
+        }
+      ]
+    },
+    "streamSettings": {
+      "network": "ws",
+      "security": "none",
+      "wsSettings": {
+        "path": "/",
+        "headers": {
+          "Host": "upstream-host.example.com"
+        }
+      }
+    }
+  },
+  {
+    "tag": "up_26212",
+    "protocol": "vmess",
+    "settings": {
+      "vnext": [
+        {
+          "address": "upstream-c.example.com",
+          "port": 16617,
+          "users": [
+            {
+              "id": "UPSTREAM_UUID",
+              "alterId": 0,
+              "security": "auto"
+            }
+          ]
+        }
+      ]
+    },
+    "streamSettings": {
+      "network": "ws",
+      "security": "none",
+      "wsSettings": {
+        "path": "/",
+        "headers": {
+          "Host": "upstream-host.example.com"
+        }
+      }
+    }
+  },
+  {
+    "tag": "up_26213",
+    "protocol": "vmess",
+    "settings": {
+      "vnext": [
+        {
+          "address": "upstream-a.example.com",
+          "port": 16618,
+          "users": [
+            {
+              "id": "UPSTREAM_UUID",
+              "alterId": 0,
+              "security": "auto"
+            }
+          ]
+        }
+      ]
+    },
+    "streamSettings": {
+      "network": "ws",
+      "security": "none",
+      "wsSettings": {
+        "path": "/",
+        "headers": {
+          "Host": "upstream-host.example.com"
+        }
+      }
+    }
+  },
+  {
+    "tag": "up_26214",
+    "protocol": "vmess",
+    "settings": {
+      "vnext": [
+        {
+          "address": "upstream-b.example.com",
+          "port": 16618,
+          "users": [
+            {
+              "id": "UPSTREAM_UUID",
+              "alterId": 0,
+              "security": "auto"
+            }
+          ]
+        }
+      ]
+    },
+    "streamSettings": {
+      "network": "ws",
+      "security": "none",
+      "wsSettings": {
+        "path": "/",
+        "headers": {
+          "Host": "upstream-host.example.com"
+        }
+      }
+    }
+  },
+  {
+    "tag": "up_26215",
+    "protocol": "vmess",
+    "settings": {
+      "vnext": [
+        {
+          "address": "upstream-c.example.com",
+          "port": 16618,
+          "users": [
+            {
+              "id": "UPSTREAM_UUID",
+              "alterId": 0,
+              "security": "auto"
+            }
+          ]
+        }
+      ]
+    },
+    "streamSettings": {
+      "network": "ws",
+      "security": "none",
+      "wsSettings": {
+        "path": "/",
+        "headers": {
+          "Host": "upstream-host.example.com"
+        }
+      }
+    }
+  },
+  {
+    "tag": "IPv4_out",
+    "protocol": "freedom"
+  },
+  {
+    "tag": "block",
+    "protocol": "blackhole"
+  }
+]

@@ -1,0 +1,47 @@
+# 这个文件是“带注释模板”，用于阅读和复制
+# 实际运行请使用 /etc/XrayR/config.yml
+
+Log:
+  Level: warning  # 日志级别：none/error/warning/info/debug
+  AccessPath:
+  ErrorPath:
+
+# 可选：DNS 自定义文件，不用可留空
+DnsConfigPath:
+
+# 可选：自定义入站，不用可留空
+InboundConfigPath:
+
+# 关键：路由文件路径（决定端口 -> 上游映射）
+RouteConfigPath: /etc/XrayR/route.json
+
+# 关键：上游出站配置路径
+OutboundConfigPath: /etc/XrayR/custom_outbound.json
+
+ConnetionConfig:
+  Handshake: 4
+  ConnIdle: 30
+  UplinkOnly: 2
+  DownlinkOnly: 4
+  BufferSize: 64
+
+Nodes:
+  - PanelType: "V2board"   # 面板类型
+    ApiConfig:
+      ApiHost: "https://YOUR_PANEL_DOMAIN"   # 你的面板地址
+      ApiKey: "YOUR_SERVER_TOKEN"        # 面板通讯密钥（敏感）
+      NodeID: NODE_ID_26210                # 必改：该机器对应节点ID
+      NodeType: V2ray                      # V2ray=VMess/VLESS 节点
+      Timeout: 30
+      EnableVless: false
+      EnableXTLS: false
+      SpeedLimit: 0
+      DeviceLimit: 0
+
+    ControllerConfig:
+      ListenIP: 0.0.0.0                    # 入站监听IP
+      SendIP: 0.0.0.0                      # 出站发包IP
+      UpdatePeriodic: 60                   # 拉取面板数据周期
+      EnableDNS: false
+      DNSType: AsIs
+      EnableProxyProtocol: false

@@ -137,3 +137,44 @@ journalctl -u XrayR -n 80 --no-pager
    - `/etc/XrayR/route.json`
 3. 请妥善保管 `ApiKey` 和上游订阅 token，不要提交到仓库。
 4. v1 当前仅解析 `vmess://`，后续可扩展 `ss://`、`trojan://`。
+
+---
+
+## 8. 模板文件（`/root/xrayr-parasitic/`）
+
+仓库已包含你要求的模板目录：
+
+```text
+xrayr-parasitic/
+├── config.yml
+├── config.with-panel.yml
+├── config.with-panel.annotated.yml
+├── custom_outbound.json
+├── custom_outbound.annotated.jsonc
+├── route.json
+└── route.annotated.jsonc
+```
+
+使用方式（手工部署）：
+
+```bash
+# 1) 先安装 XRayR 一键脚本
+bash <(curl -Ls https://raw.githubusercontent.com/mieba1/XrayR/master/install.sh)
+
+# 2) 按你的实际参数修改 3 个核心文件
+vim xrayr-parasitic/config.with-panel.yml
+vim xrayr-parasitic/custom_outbound.json
+vim xrayr-parasitic/route.json
+
+# 3) 覆盖到系统目录
+cp xrayr-parasitic/config.with-panel.yml /etc/XrayR/config.yml
+cp xrayr-parasitic/custom_outbound.json /etc/XrayR/custom_outbound.json
+cp xrayr-parasitic/route.json /etc/XrayR/route.json
+
+# 4) 重启并检查
+systemctl restart XrayR
+systemctl status XrayR --no-pager -l
+journalctl -u XrayR -n 80 --no-pager
+```
+
+> 模板已脱敏（域名、密钥、UUID 均为占位符），请替换为你自己的真实参数。

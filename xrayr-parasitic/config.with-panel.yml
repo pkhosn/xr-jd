@@ -1,0 +1,153 @@
+Log:
+  Level: warning
+  AccessPath:
+  ErrorPath:
+DnsConfigPath:
+InboundConfigPath:
+RouteConfigPath: /etc/XrayR/route.json
+OutboundConfigPath: /etc/XrayR/custom_outbound.json
+ConnetionConfig:
+  Handshake: 4
+  ConnIdle: 30
+  UplinkOnly: 2
+  DownlinkOnly: 4
+  BufferSize: 64
+Nodes:
+  - PanelType: "V2board"
+    ApiConfig:
+      ApiHost: "https://YOUR_PANEL_DOMAIN"
+      ApiKey: "YOUR_SERVER_TOKEN"
+      NodeID: NODE_ID_26210
+      NodeType: V2ray
+      Timeout: 30
+      EnableVless: false
+      EnableXTLS: false
+      SpeedLimit: 0
+      DeviceLimit: 0
+    ControllerConfig:
+      ListenIP: 0.0.0.0
+      SendIP: 0.0.0.0
+      UpdatePeriodic: 60
+      EnableDNS: false
+      DNSType: AsIs
+      EnableProxyProtocol: false
+      AutoSpeedLimitConfig:
+        Limit: 0
+        WarnTimes: 0
+        LimitSpeed: 0
+        LimitDuration: 0
+  - PanelType: "V2board"
+    ApiConfig:
+      ApiHost: "https://YOUR_PANEL_DOMAIN"
+      ApiKey: "YOUR_SERVER_TOKEN"
+      NodeID: NODE_ID_26211
+      NodeType: V2ray
+      Timeout: 30
+      EnableVless: false
+      EnableXTLS: false
+      SpeedLimit: 0
+      DeviceLimit: 0
+    ControllerConfig:
+      ListenIP: 0.0.0.0
+      SendIP: 0.0.0.0
+      UpdatePeriodic: 60
+      EnableDNS: false
+      DNSType: AsIs
+      EnableProxyProtocol: false
+      AutoSpeedLimitConfig:
+        Limit: 0
+        WarnTimes: 0
+        LimitSpeed: 0
+        LimitDuration: 0
+  - PanelType: "V2board"
+    ApiConfig:
+      ApiHost: "https://YOUR_PANEL_DOMAIN"
+      ApiKey: "YOUR_SERVER_TOKEN"
+      NodeID: NODE_ID_26212
+      NodeType: V2ray
+      Timeout: 30
+      EnableVless: false
+      EnableXTLS: false
+      SpeedLimit: 0
+      DeviceLimit: 0
+    ControllerConfig:
+      ListenIP: 0.0.0.0
+      SendIP: 0.0.0.0
+      UpdatePeriodic: 60
+      EnableDNS: false
+      DNSType: AsIs
+      EnableProxyProtocol: false
+      AutoSpeedLimitConfig:
+        Limit: 0
+        WarnTimes: 0
+        LimitSpeed: 0
+        LimitDuration: 0
+  - PanelType: "V2board"
+    ApiConfig:
+      ApiHost: "https://YOUR_PANEL_DOMAIN"
+      ApiKey: "YOUR_SERVER_TOKEN"
+      NodeID: NODE_ID_26213
+      NodeType: V2ray
+      Timeout: 30
+      EnableVless: false
+      EnableXTLS: false
+      SpeedLimit: 0
+      DeviceLimit: 0
+    ControllerConfig:
+      ListenIP: 0.0.0.0
+      SendIP: 0.0.0.0
+      UpdatePeriodic: 60
+      EnableDNS: false
+      DNSType: AsIs
+      EnableProxyProtocol: false
+      AutoSpeedLimitConfig:
+        Limit: 0
+        WarnTimes: 0
+        LimitSpeed: 0
+        LimitDuration: 0
+  - PanelType: "V2board"
+    ApiConfig:
+      ApiHost: "https://YOUR_PANEL_DOMAIN"
+      ApiKey: "YOUR_SERVER_TOKEN"
+      NodeID: NODE_ID_26214
+      NodeType: V2ray
+      Timeout: 30
+      EnableVless: false
+      EnableXTLS: false
+      SpeedLimit: 0
+      DeviceLimit: 0
+    ControllerConfig:
+      ListenIP: 0.0.0.0
+      SendIP: 0.0.0.0
+      UpdatePeriodic: 60
+      EnableDNS: false
+      DNSType: AsIs
+      EnableProxyProtocol: false
+      AutoSpeedLimitConfig:
+        Limit: 0
+        WarnTimes: 0
+        LimitSpeed: 0
+        LimitDuration: 0
+  - PanelType: "V2board"
+    ApiConfig:
+      ApiHost: "https://YOUR_PANEL_DOMAIN"
+      ApiKey: "YOUR_SERVER_TOKEN"
+      NodeID: NODE_ID_26215
+      NodeType: V2ray
+      Timeout: 30
+      EnableVless: false
+      EnableXTLS: false
+      SpeedLimit: 0
+      DeviceLimit: 0
+    ControllerConfig:
+      ListenIP: 0.0.0.0
+      SendIP: 0.0.0.0
+      UpdatePeriodic: 60
+      EnableDNS: false
+      DNSType: AsIs
+      EnableProxyProtocol: false
+      AutoSpeedLimitConfig:
+        Limit: 0
+        WarnTimes: 0
+        LimitSpeed: 0
+        LimitDuration: 0

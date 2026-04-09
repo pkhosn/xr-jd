@@ -1,0 +1,50 @@
+{
+  "domainStrategy": "IPOnDemand",
+  "rules": [
+    {
+      "type": "field",
+      "outboundTag": "block",
+      "ip": ["geoip:private"]
+    },
+    {
+      "type": "field",
+      "outboundTag": "block",
+      "protocol": ["bittorrent"]
+    },
+    {
+      "type": "field",
+      "inboundTag": ["V2ray_0.0.0.0_26210"],
+      "outboundTag": "up_26210"
+    },
+    {
+      "type": "field",
+      "inboundTag": ["V2ray_0.0.0.0_26211"],
+      "outboundTag": "up_26211"
+    },
+    {
+      "type": "field",
+      "inboundTag": ["V2ray_0.0.0.0_26212"],
+      "outboundTag": "up_26212"
+    },
+    {
+      "type": "field",
+      "inboundTag": ["V2ray_0.0.0.0_26213"],
+      "outboundTag": "up_26213"
+    },
+    {
+      "type": "field",
+      "inboundTag": ["V2ray_0.0.0.0_26214"],
+      "outboundTag": "up_26214"
+    },
+    {
+      "type": "field",
+      "inboundTag": ["V2ray_0.0.0.0_26215"],
+      "outboundTag": "up_26215"
+    },
+    {
+      "type": "field",
+      "outboundTag": "IPv4_out",
+      "network": "tcp,udp"
+    }
+  ]
+}

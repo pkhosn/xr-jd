@@ -1,0 +1,25 @@
+{
+  "domainStrategy": "IPOnDemand",
+  "rules": [
+    {
+      "type": "field",
+      "outboundTag": "block",
+      "ip": ["geoip:private"]
+    },
+    {
+      "type": "field",
+      "outboundTag": "block",
+      "protocol": ["bittorrent"]
+    },
+    {
+      "type": "field",
+      "inboundTag": ["V2ray_0.0.0.0_26210"], // 本地26210端口入站Tag
+      "outboundTag": "up_26210" // 对应上游出口Tag
+    },
+    {
+      "type": "field",
+      "outboundTag": "IPv4_out",
+      "network": "tcp,udp"
+    }
+  ]
+}
