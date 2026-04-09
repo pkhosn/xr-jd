@@ -1,22 +1,53 @@
 # xr-jd
 
-XRayR upstream deploy wizard (interactive + CLI).
+`xr-jd` 是一个用于自动化部署 XRayR 上游映射的脚本工具，支持：
+- 交互式向导（一步步输入）
+- 命令行参数模式（适合批量/自动化）
+- 自动安装 XRayR（调用一键脚本）
+- 自动生成并应用 3 个核心配置文件
+- 自动备份与回滚
 
-## Features
-- Auto-detect/install XRayR via one-click script
-- Prompt for `ApiHost`, `ApiKey`, `NodeID(s)`, `NodeType`, local ports, upstream subscription URL
-- Parse subscription (v1 supports `vmess://` lines)
-- Generate `config.yml`, `custom_outbound.json`, `route.json`
-- `--dry-run` generate only
-- `--apply` backup + write `/etc/XrayR` + restart service
-- `--rollback` rollback latest backup snapshot
+---
 
-## Quick Start (interactive)
+## 1. 工具做了什么
+脚本会完成以下事情：
+
+1. 检测 XRayR 是否安装（未安装则执行一键脚本）
+2. 拉取上游订阅并解析（v1 仅支持 `vmess://`）
+3. 根据你输入的端口和 NodeID 生成：
+   - `/etc/XrayR/config.yml`
+   - `/etc/XrayR/custom_outbound.json`
+   - `/etc/XrayR/route.json`
+4. （`--apply` 模式）自动备份旧配置并重启 XRayR
+
+---
+
+## 2. 快速开始（最推荐）
+
+### 2.1 交互模式
+直接运行：
+
 ```bash
 python3 deploy_xrayr_wizard.py
 ```
 
-## Quick Start (non-interactive dry-run)
+然后按提示输入：
+- `ApiHost`：你的 V2Board 面板地址（如 `https://panel.example.com`）
+- `ApiKey`：面板 `SERVER_TOKEN`
+- `NodeID`：可填 1 个或多个（如 `5` 或 `5,6` 或 `5-8`）
+- `NodeType`：默认 `V2ray`
+- `Local ports`：本地端口（如 `26210` 或 `26210-26215`）
+- `Upstream subscription URL`：上游订阅链接
+- `Mapping mode`：`auto`（自动前 N 个）或 `manual`（手动序号）
+
+> 注意：`NodeID` 数量必须与端口数量一致。
+
+---
+
+## 3. 命令行模式
+
+### 3.1 仅生成文件（不改系统）
+
 ```bash
 python3 deploy_xrayr_wizard.py \
   --non-interactive \
@@ -30,7 +61,8 @@ python3 deploy_xrayr_wizard.py \
   --output-dir ./generated
 ```
 
-## Apply to system
+### 3.2 直接应用到系统
+
 ```bash
 sudo python3 deploy_xrayr_wizard.py \
   --non-interactive \
@@ -43,13 +75,65 @@ sudo python3 deploy_xrayr_wizard.py \
   --apply
 ```
 
-## Rollback
+---
+
+## 4. 回滚
+回滚到最近一次备份：
+
 ```bash
 sudo python3 deploy_xrayr_wizard.py --rollback
 ```
 
-## Notes
-- Requires root for `--apply` and installer execution.
-- Writes to `/etc/XrayR/config.yml`, `/etc/XrayR/custom_outbound.json`, `/etc/XrayR/route.json`.
-- Backups saved in `/etc/XrayR/backups/<timestamp>/`.
-- Keep `ApiKey` / subscription token private.
+备份目录：
+
+```text
+/etc/XrayR/backups/<timestamp>/
+```
+
+---
+
+## 5. 参数说明
+
+- `--api-host`：面板地址
+- `--api-key`：面板密钥（敏感）
+- `--node-ids`：支持单值/逗号/范围（`5`、`5,6`、`5-8`）
+- `--node-type`：`V2ray` / `Shadowsocks` / `Trojan`
+- `--ports`：支持单值/逗号/范围
+- `--sub-url`：上游订阅链接
+- `--map-mode`：`auto` 或 `manual`
+- `--map-indices`：手动模式下指定上游节点序号（如 `1,3,5`）
+- `--dry-run`：只生成，不应用
+- `--apply`：写入 `/etc/XrayR` 并重启
+- `--skip-install`：跳过安装检测
+- `--rollback`：回滚最近备份
+- `--non-interactive`：关闭交互，必须配齐必要参数
+
+---
+
+## 6. 运行后的验证
+
+```bash
+systemctl status XrayR --no-pager -l
+journalctl -u XrayR -n 80 --no-pager
+```
+
+成功常见日志：
+- `Added xxx new users`
+- `Start node monitor periodic task`
+
+失败常见日志：
+- `panic` / `segmentation fault`
+- `Failed to listen`
+- `invalid memory address`
+
+---
+
+## 7. 注意事项
+
+1. `--apply` 需要 root 权限。
+2. 脚本会改写：
+   - `/etc/XrayR/config.yml`
+   - `/etc/XrayR/custom_outbound.json`
+   - `/etc/XrayR/route.json`
+3. 请妥善保管 `ApiKey` 和上游订阅 token，不要提交到仓库。
+4. v1 当前仅解析 `vmess://`，后续可扩展 `ss://`、`trojan://`。
