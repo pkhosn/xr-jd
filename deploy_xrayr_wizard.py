@@ -514,7 +514,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--api-host")
     p.add_argument("--api-key")
     p.add_argument("--node-ids", help="single/list/range, e.g. 5 or 5,6 or 5-8")
-    p.add_argument("--node-type", default="V2ray")
+    p.add_argument("--node-type")
     p.add_argument("--ports", help="single/list/range, e.g. 26210-26215")
     p.add_argument("--sub-url")
     p.add_argument("--map-mode", choices=["auto", "manual"], default="auto")
@@ -565,6 +565,9 @@ def main() -> int:
     if not args.node_ids or not args.ports or not args.sub_url or not args.api_host or not args.api_key:
         eprint("[err] missing required inputs")
         return 1
+
+    if not args.node_type:
+        args.node_type = "V2ray"
 
     try:
         node_ids = parse_range_list(args.node_ids)
