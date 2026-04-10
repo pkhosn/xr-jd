@@ -48,6 +48,8 @@ def parse_range_list(value: str) -> List[int]:
     value = value.strip()
     if not value:
         raise ValueError("empty input")
+    # 兼容中文输入法：中文逗号与全角/长横线
+    value = value.replace("，", ",").replace("－", "-").replace("—", "-").replace("–", "-").replace("~", "-")
     out: List[int] = []
     for part in [x.strip() for x in value.split(",") if x.strip()]:
         if "-" in part:
