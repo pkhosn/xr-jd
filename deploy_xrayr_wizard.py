@@ -27,6 +27,22 @@ def eprint(msg: str) -> None:
     print(msg, file=sys.stderr)
 
 
+def safe_input(prompt: str) -> str:
+    try:
+        return input(prompt)
+    except UnicodeDecodeError:
+        print(prompt, end="", flush=True)
+        data = sys.stdin.buffer.readline()
+        if not data:
+            return ""
+        for enc in ("utf-8", "gb18030", "latin-1"):
+            try:
+                return data.decode(enc).rstrip("\r\n")
+            except Exception:
+                continue
+        return data.decode("utf-8", errors="ignore").rstrip("\r\n")
+
+
 def mask_secret(s: str) -> str:
     if not s:
         return s
@@ -657,23 +673,23 @@ def restart_and_check() -> None:
 
 def interactive_fill(args: argparse.Namespace) -> argparse.Namespace:
     if not args.api_host:
-        args.api_host = input("ApiHost (e.g. https://panel.example.com): ").strip()
+        args.api_host = safe_input("ApiHost (e.g. https://panel.example.com): ").strip()
     if not args.api_key:
         args.api_key = getpass.getpass("ApiKey (SERVER_TOKEN): ").strip()
     if not args.node_ids:
-        args.node_ids = input("NodeID (single or comma list, e.g. 5 or 5,6): ").strip()
+        args.node_ids = safe_input("NodeID (single or comma list, e.g. 5 or 5,6): ").strip()
     if not args.node_types and not args.node_type:
-        v = input("NodeTypes (single or comma list, e.g. V2ray or V2ray,Shadowsocks) [V2ray]: ").strip()
+        v = safe_input("NodeTypes (single or comma list, e.g. V2ray or V2ray,Shadowsocks) [V2ray]: ").strip()
         args.node_types = v or "V2ray"
     if not args.ports:
-        args.ports = input("Local ports (single/list/range, e.g. 26210 or 26210-26215): ").strip()
+        args.ports = safe_input("Local ports (single/list/range, e.g. 26210 or 26210-26215): ").strip()
     if not args.sub_url:
-        args.sub_url = input("Upstream subscription URL: ").strip()
+        args.sub_url = safe_input("Upstream subscription URL: ").strip()
     if not args.map_mode:
-        v = input("Mapping mode [auto/manual]: ").strip().lower()
+        v = safe_input("Mapping mode [auto/manual]: ").strip().lower()
         args.map_mode = v or "auto"
     if args.map_mode == "manual" and not args.map_indices:
-        args.map_indices = input("Manual node indexes (e.g. 1,3,5): ").strip()
+        args.map_indices = safe_input("Manual node indexes (e.g. 1,3,5): ").strip()
     return args
 
 
