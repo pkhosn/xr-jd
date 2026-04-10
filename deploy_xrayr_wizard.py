@@ -737,6 +737,27 @@ def extract_node_ids_from_blocks(blocks: List[str]) -> List[int]:
     return out
 
 
+def reindent_block(block: str, target_indent: str) -> str:
+    lines = block.splitlines()
+    base_indent = None
+    for ln in lines:
+        if ln.strip():
+            base_indent = len(ln) - len(ln.lstrip(" "))
+            break
+    if base_indent is None:
+        return block
+
+    out_lines: List[str] = []
+    for ln in lines:
+        if not ln.strip():
+            out_lines.append(ln)
+            continue
+        cur_indent = len(ln) - len(ln.lstrip(" "))
+        cut = min(cur_indent, base_indent)
+        out_lines.append(target_indent + ln[cut:])
+    return "\n".join(out_lines)
+
+
 def merge_config_append(
     existing_text: str,
     api_host: str,
@@ -756,7 +777,13 @@ def merge_config_append(
         existing_ids.add(nid)
         new_ids.append(nid)
         new_types.append(ntype)
-    new_blocks = build_node_blocks(api_host, api_key, new_ids, new_types)
+    new_blocks_raw = build_node_blocks(api_host, api_key, new_ids, new_types)
+    target_indent = ""
+    if blocks:
+        m = re.match(r"^(\s*)-\s+PanelType\s*:", blocks[0])
+        if m:
+            target_indent = m.group(1)
+    new_blocks = [reindent_block(b, target_indent) for b in new_blocks_raw]
     merged = head + "\n" + "\n".join(blocks + new_blocks) + "\n"
     return merged, len(new_blocks), skipped_dup
 
