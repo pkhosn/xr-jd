@@ -121,6 +121,28 @@ sudo python3 deploy_xrayr_wizard.py \
   --apply
 ```
 
+### 4.3 只追加新节点（不覆盖旧节点）
+
+当你已经部署好一批节点，后续只想新增节点时，使用 `--append`：
+
+```bash
+sudo python3 deploy_xrayr_wizard.py \
+  --non-interactive \
+  --api-host https://panel.example.com \
+  --api-key YOUR_SERVER_TOKEN \
+  --node-ids 8 \
+  --node-types V2ray \
+  --ports 11682 \
+  --sub-url 'https://example.com/sub?token=xxx' \
+  --append \
+  --apply
+```
+
+说明：
+- `--append` 会读取现有 `/etc/XrayR/{config.yml,custom_outbound.json,route.json}` 并追加新条目
+- 不会覆盖已有节点
+- 如果 NodeID/端口对应规则已存在，会自动跳过并提示 duplicated 计数
+
 ---
 
 ## 5. 回滚
@@ -167,6 +189,7 @@ bash uninstall_all.sh --yes
 - `--map-indices`：手动模式下指定上游节点序号（如 `1,3,5`）
 - `--dry-run`：只生成，不应用
 - `--apply`：写入 `/etc/XrayR` 并重启
+- `--append`：追加模式（基于现有配置追加新节点，而不是覆盖）
 - `--skip-install`：跳过安装检测
 - `--rollback`：回滚最近备份
 - `--non-interactive`：关闭交互，必须配齐必要参数

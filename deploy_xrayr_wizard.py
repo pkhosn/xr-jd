@@ -643,6 +643,32 @@ def build_route(ports: List[int], node_types: List[str]) -> Dict:
 
 
 def build_config_yaml(api_host: str, api_key: str, node_ids: List[int], node_types: List[str]) -> str:
+    blocks = build_node_blocks(api_host, api_key, node_ids, node_types)
+
+    head = textwrap.dedent(
+        """
+        Log:
+          Level: warning
+          AccessPath:
+          ErrorPath:
+        DnsConfigPath:
+        InboundConfigPath:
+        RouteConfigPath: /etc/XrayR/route.json
+        OutboundConfigPath: /etc/XrayR/custom_outbound.json
+        ConnetionConfig:
+          Handshake: 4
+          ConnIdle: 30
+          UplinkOnly: 2
+          DownlinkOnly: 4
+          BufferSize: 64
+        Nodes:
+        """
+    ).rstrip()
+
+    return head + "\n" + "\n".join(blocks) + "\n"
+
+
+def build_node_blocks(api_host: str, api_key: str, node_ids: List[int], node_types: List[str]) -> List[str]:
     blocks = []
     for nid, ntype in zip(node_ids, node_types):
         blocks.append(
@@ -669,28 +695,132 @@ def build_config_yaml(api_host: str, api_key: str, node_ids: List[int], node_typ
                 """
             ).rstrip()
         )
+    return blocks
 
-    head = textwrap.dedent(
-        """
-        Log:
-          Level: warning
-          AccessPath:
-          ErrorPath:
-        DnsConfigPath:
-        InboundConfigPath:
-        RouteConfigPath: /etc/XrayR/route.json
-        OutboundConfigPath: /etc/XrayR/custom_outbound.json
-        ConnetionConfig:
-          Handshake: 4
-          ConnIdle: 30
-          UplinkOnly: 2
-          DownlinkOnly: 4
-          BufferSize: 64
-        Nodes:
-        """
-    ).rstrip()
 
-    return head + "\n" + "\n".join(blocks) + "\n"
+def split_config_head_and_blocks(config_text: str) -> Tuple[str, List[str]]:
+    lines = config_text.splitlines()
+    idx = -1
+    for i, line in enumerate(lines):
+        if line.strip() == "Nodes:":
+            idx = i
+            break
+    if idx < 0:
+        raise ValueError("invalid config.yml: missing 'Nodes:' section")
+
+    head = "\n".join(lines[: idx + 1]).rstrip()
+    tail = lines[idx + 1 :]
+    blocks: List[str] = []
+    cur: List[str] = []
+    for line in tail:
+        if re.match(r"^\s*-\s+PanelType\s*:", line):
+            if cur:
+                blocks.append("\n".join(cur).rstrip())
+            cur = [line]
+        elif cur:
+            cur.append(line)
+    if cur:
+        blocks.append("\n".join(cur).rstrip())
+    return head, blocks
+
+
+def extract_node_ids_from_blocks(blocks: List[str]) -> List[int]:
+    out: List[int] = []
+    for b in blocks:
+        m = re.search(r"^\s*NodeID\s*:\s*([0-9]+)\s*$", b, flags=re.MULTILINE)
+        if not m:
+            continue
+        try:
+            out.append(int(m.group(1)))
+        except Exception:
+            continue
+    return out
+
+
+def merge_config_append(
+    existing_text: str,
+    api_host: str,
+    api_key: str,
+    node_ids: List[int],
+    node_types: List[str],
+) -> Tuple[str, int, int]:
+    head, blocks = split_config_head_and_blocks(existing_text)
+    existing_ids = set(extract_node_ids_from_blocks(blocks))
+    new_ids: List[int] = []
+    new_types: List[str] = []
+    skipped_dup = 0
+    for nid, ntype in zip(node_ids, node_types):
+        if nid in existing_ids:
+            skipped_dup += 1
+            continue
+        existing_ids.add(nid)
+        new_ids.append(nid)
+        new_types.append(ntype)
+    new_blocks = build_node_blocks(api_host, api_key, new_ids, new_types)
+    merged = head + "\n" + "\n".join(blocks + new_blocks) + "\n"
+    return merged, len(new_blocks), skipped_dup
+
+
+def merge_outbound_append(existing: List[Dict], new_up: List[Dict]) -> Tuple[List[Dict], int, int]:
+    merged = list(existing)
+    existing_tags = {x.get("tag", "") for x in merged if isinstance(x, dict)}
+    added = 0
+    skipped_dup = 0
+    for item in new_up:
+        tag = item.get("tag", "")
+        if not tag.startswith("up_"):
+            continue
+        if tag in existing_tags:
+            skipped_dup += 1
+            continue
+        merged.append(item)
+        existing_tags.add(tag)
+        added += 1
+
+    if "IPv4_out" not in existing_tags:
+        merged.append({"tag": "IPv4_out", "protocol": "freedom"})
+    if "block" not in existing_tags:
+        merged.append({"tag": "block", "protocol": "blackhole"})
+    return merged, added, skipped_dup
+
+
+def merge_route_append(existing: Dict, ports: List[int], node_types: List[str]) -> Tuple[Dict, int, int]:
+    merged = dict(existing) if isinstance(existing, dict) else {}
+    rules = merged.get("rules")
+    if not isinstance(rules, list):
+        rules = []
+        merged["rules"] = rules
+    if not merged.get("domainStrategy"):
+        merged["domainStrategy"] = "IPOnDemand"
+
+    existing_inbound_tags = set()
+    for r in rules:
+        if isinstance(r, dict):
+            for t in r.get("inboundTag", []) or []:
+                existing_inbound_tags.add(t)
+
+    new_rules = []
+    skipped_dup = 0
+    for p, t in zip(ports, node_types):
+        inbound = f"{inbound_tag_prefix(t)}_0.0.0.0_{p}"
+        if inbound in existing_inbound_tags:
+            skipped_dup += 1
+            continue
+        new_rules.append({"type": "field", "inboundTag": [inbound], "outboundTag": f"up_{p}"})
+        existing_inbound_tags.add(inbound)
+
+    idx_default = None
+    for i, r in enumerate(rules):
+        if isinstance(r, dict) and r.get("outboundTag") == "IPv4_out":
+            idx_default = i
+            break
+
+    if idx_default is None:
+        rules.extend(new_rules)
+        rules.append({"type": "field", "outboundTag": "IPv4_out", "network": "tcp,udp"})
+    else:
+        rules[idx_default:idx_default] = new_rules
+    return merged, len(new_rules), skipped_dup
 
 
 def ensure_installed(install_script_url: str) -> None:
@@ -772,6 +902,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--rollback", action="store_true", help="rollback latest backup in /etc/XrayR/backups")
     p.add_argument("--non-interactive", action="store_true")
     p.add_argument("--disable-smart-filter", action="store_true", help="disable auto filtering for info/duplicate nodes")
+    p.add_argument("--append", action="store_true", help="append new nodes to existing /etc/XrayR configs")
     return p.parse_args()
 
 
@@ -935,6 +1066,48 @@ def main() -> int:
     route_obj = build_route(ports, node_types)
     cfg_text = build_config_yaml(args.api_host, args.api_key, node_ids, node_types)
 
+    append_stats = None
+    if args.append:
+        base = DEFAULT_ETC
+        cfg_path = base / "config.yml"
+        out_path = base / "custom_outbound.json"
+        route_path = base / "route.json"
+        if not cfg_path.exists() or not out_path.exists() or not route_path.exists():
+            eprint("[err] --append requires existing /etc/XrayR/{config.yml,custom_outbound.json,route.json}")
+            return 1
+        try:
+            old_cfg = cfg_path.read_text()
+            old_out = json.loads(out_path.read_text())
+            old_route = json.loads(route_path.read_text())
+        except Exception as ex:
+            eprint(f"[err] read existing configs failed in append mode: {ex}")
+            return 1
+
+        try:
+            cfg_text, cfg_added, cfg_dup = merge_config_append(old_cfg, args.api_host, args.api_key, node_ids, node_types)
+            out_obj, out_added, out_dup = merge_outbound_append(old_out, out_obj)
+            route_obj, route_added, route_dup = merge_route_append(old_route, ports, node_types)
+            append_stats = {
+                "cfg_added": cfg_added,
+                "cfg_dup": cfg_dup,
+                "out_added": out_added,
+                "out_dup": out_dup,
+                "route_added": route_added,
+                "route_dup": route_dup,
+            }
+            print(
+                "[info] append mode: "
+                f"config added={cfg_added}, config duplicated={cfg_dup}; "
+                f"outbound added={out_added}, outbound duplicated={out_dup}; "
+                f"route added={route_added}, route duplicated={route_dup}"
+            )
+            if cfg_added == 0 and out_added == 0 and route_added == 0:
+                eprint("[err] append mode found no new items to add")
+                return 1
+        except Exception as ex:
+            eprint(f"[err] append merge failed: {ex}")
+            return 1
+
     if args.apply and args.dry_run:
         eprint("[err] choose either --apply or --dry-run, not both")
         return 1
@@ -952,6 +1125,13 @@ def main() -> int:
             restart_and_check()
             print(f"[ok] applied to {DEFAULT_ETC}")
             print(f"[ok] backup: {bdir}")
+            if append_stats:
+                print(
+                    "[ok] append summary: "
+                    f"config+{append_stats['cfg_added']}, "
+                    f"outbound+{append_stats['out_added']}, "
+                    f"route+{append_stats['route_added']}"
+                )
             logs = run("journalctl -u XrayR -n 30 --no-pager", check=False).stdout
             print("[info] latest logs:\n" + logs)
             return 0
@@ -962,6 +1142,13 @@ def main() -> int:
     out_dir = Path(args.output_dir).resolve()
     write_outputs(out_dir, cfg_text, out_obj, route_obj)
     print(f"[ok] dry-run files generated at: {out_dir}")
+    if append_stats:
+        print(
+            "[ok] append dry-run summary: "
+            f"config+{append_stats['cfg_added']}, "
+            f"outbound+{append_stats['out_added']}, "
+            f"route+{append_stats['route_added']}"
+        )
     print("[next] inspect then apply by running with --apply")
     return 0
 
