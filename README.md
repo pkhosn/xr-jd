@@ -143,7 +143,8 @@ sudo python3 deploy_xrayr_wizard.py --rollback
 - `--api-host`：面板地址
 - `--api-key`：面板密钥（敏感）
 - `--node-ids`：支持单值/逗号/范围（`5`、`5,6`、`5-8`）
-- `--node-type`：`V2ray` / `Shadowsocks` / `Trojan`
+- `--node-type`：单一节点类型（会应用到所有 NodeID），`V2ray` / `Shadowsocks` / `Trojan`
+- `--node-types`：多节点类型列表，和 `--node-ids` 一一对应（如 `V2ray,Shadowsocks,V2ray`）
 - `--ports`：支持单值/逗号/范围
 - `--sub-url`：上游订阅链接
 - `--map-mode`：`auto` 或 `manual`

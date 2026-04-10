@@ -64,6 +64,19 @@ def parse_range_list(value: str) -> List[int]:
     return out
 
 
+def parse_node_types(value: str) -> List[str]:
+    raw = value.strip()
+    if not raw:
+        raise ValueError("empty node types")
+    raw = raw.replace("，", ",")
+    out: List[str] = []
+    for part in [x.strip() for x in raw.split(",") if x.strip()]:
+        out.append(normalize_node_type(part))
+    if not out:
+        raise ValueError("empty node types")
+    return out
+
+
 def normalize_node_type(node_type: str) -> str:
     t = node_type.strip().lower()
     if t in ("v2ray", "vmess", "vless"):
@@ -535,13 +548,13 @@ def build_outbound(ports: List[int], upstream: List[Dict]) -> List[Dict]:
     return out
 
 
-def build_route(ports: List[int], node_type: str) -> Dict:
-    prefix = inbound_tag_prefix(node_type)
+def build_route(ports: List[int], node_types: List[str]) -> Dict:
     rules = [
         {"type": "field", "outboundTag": "block", "ip": ["geoip:private"]},
         {"type": "field", "outboundTag": "block", "protocol": ["bittorrent"]},
     ]
-    for p in ports:
+    for p, t in zip(ports, node_types):
+        prefix = inbound_tag_prefix(t)
         rules.append(
             {
                 "type": "field",
@@ -553,10 +566,9 @@ def build_route(ports: List[int], node_type: str) -> Dict:
     return {"domainStrategy": "IPOnDemand", "rules": rules}
 
 
-def build_config_yaml(api_host: str, api_key: str, node_ids: List[int], node_type: str) -> str:
-    ntype = normalize_node_type(node_type)
+def build_config_yaml(api_host: str, api_key: str, node_ids: List[int], node_types: List[str]) -> str:
     blocks = []
-    for nid in node_ids:
+    for nid, ntype in zip(node_ids, node_types):
         blocks.append(
             textwrap.dedent(
                 f"""
@@ -650,9 +662,9 @@ def interactive_fill(args: argparse.Namespace) -> argparse.Namespace:
         args.api_key = getpass.getpass("ApiKey (SERVER_TOKEN): ").strip()
     if not args.node_ids:
         args.node_ids = input("NodeID (single or comma list, e.g. 5 or 5,6): ").strip()
-    if not args.node_type:
-        v = input("NodeType [V2ray]: ").strip()
-        args.node_type = v or "V2ray"
+    if not args.node_types and not args.node_type:
+        v = input("NodeTypes (single or comma list, e.g. V2ray or V2ray,Shadowsocks) [V2ray]: ").strip()
+        args.node_types = v or "V2ray"
     if not args.ports:
         args.ports = input("Local ports (single/list/range, e.g. 26210 or 26210-26215): ").strip()
     if not args.sub_url:
@@ -671,6 +683,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--api-key")
     p.add_argument("--node-ids", help="single/list/range, e.g. 5 or 5,6 or 5-8")
     p.add_argument("--node-type")
+    p.add_argument("--node-types", help="single/list, e.g. V2ray or V2ray,Shadowsocks")
     p.add_argument("--ports", help="single/list/range, e.g. 26210-26215")
     p.add_argument("--sub-url")
     p.add_argument("--map-mode", choices=["auto", "manual"], default="auto")
@@ -722,9 +735,6 @@ def main() -> int:
         eprint("[err] missing required inputs")
         return 1
 
-    if not args.node_type:
-        args.node_type = "V2ray"
-
     try:
         node_ids = parse_range_list(args.node_ids)
         ports = parse_range_list(args.ports)
@@ -734,6 +744,23 @@ def main() -> int:
 
     if len(node_ids) != len(ports):
         eprint(f"[err] node_ids count ({len(node_ids)}) must equal ports count ({len(ports)})")
+        return 1
+
+    # 节点类型支持两种模式：
+    # 1) 单个类型（--node-type 或 --node-types 仅一个值）广播到全部 NodeID
+    # 2) 多个类型（--node-types 多值）与 NodeID/端口一一对应
+    node_types_input = args.node_types or args.node_type or "V2ray"
+    try:
+        node_types = parse_node_types(node_types_input)
+    except Exception as ex:
+        eprint(f"[err] parse node types failed: {ex}")
+        return 1
+    if len(node_types) == 1:
+        node_types = node_types * len(node_ids)
+    if len(node_types) != len(node_ids):
+        eprint(
+            f"[err] node_types count ({len(node_types)}) must be 1 or equal node_ids count ({len(node_ids)})"
+        )
         return 1
 
     manual_indices = None
@@ -819,8 +846,8 @@ def main() -> int:
         return 1
 
     out_obj = build_outbound(ports, picked)
-    route_obj = build_route(ports, args.node_type)
-    cfg_text = build_config_yaml(args.api_host, args.api_key, node_ids, args.node_type)
+    route_obj = build_route(ports, node_types)
+    cfg_text = build_config_yaml(args.api_host, args.api_key, node_ids, node_types)
 
     if args.apply and args.dry_run:
         eprint("[err] choose either --apply or --dry-run, not both")
