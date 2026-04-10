@@ -154,6 +154,7 @@ sudo python3 deploy_xrayr_wizard.py --rollback
 - `--skip-install`：跳过安装检测
 - `--rollback`：回滚最近备份
 - `--non-interactive`：关闭交互，必须配齐必要参数
+- `--disable-smart-filter`：关闭自动优选（默认会自动过滤“流量/到期/订阅提示”节点并去重）
 
 ---
 

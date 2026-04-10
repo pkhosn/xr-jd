@@ -60,6 +60,66 @@ def is_bad_upstream_host(host: str) -> bool:
     return False
 
 
+def is_info_node_name(name: str) -> bool:
+    n = (name or "").strip().lower()
+    if not n:
+        return False
+    keywords = [
+        "剩余流量",
+        "套餐到期",
+        "到期",
+        "流量",
+        "过滤",
+        "订阅",
+        "官网",
+        "公告",
+        "剩余",
+        "traffic",
+        "expire",
+        "expiration",
+        "subscription",
+    ]
+    return any(k in n for k in keywords)
+
+
+def node_signature(n: Dict) -> str:
+    return "|".join(
+        [
+            str(n.get("protocol", "")),
+            str(n.get("add", "")),
+            str(n.get("port", "")),
+            str(n.get("net", "")),
+            str(n.get("host", "")),
+            str(n.get("path", "")),
+            str(n.get("tls", "")),
+        ]
+    )
+
+
+def smart_filter_nodes(nodes: List[Dict]) -> Tuple[List[Dict], int, int]:
+    # 1) drop提示类节点
+    kept: List[Dict] = []
+    dropped_info = 0
+    for n in nodes:
+        if is_info_node_name(n.get("ps", "")):
+            dropped_info += 1
+            continue
+        kept.append(n)
+
+    # 2) 去重（地址/端口/协议/传输维度）
+    deduped: List[Dict] = []
+    seen = set()
+    dropped_dup = 0
+    for n in kept:
+        sig = node_signature(n)
+        if sig in seen:
+            dropped_dup += 1
+            continue
+        seen.add(sig)
+        deduped.append(n)
+    return deduped, dropped_info, dropped_dup
+
+
 def parse_range_list(value: str) -> List[int]:
     value = value.strip()
     if not value:
@@ -711,6 +771,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--install-script-url", default=INSTALL_SCRIPT_URL)
     p.add_argument("--rollback", action="store_true", help="rollback latest backup in /etc/XrayR/backups")
     p.add_argument("--non-interactive", action="store_true")
+    p.add_argument("--disable-smart-filter", action="store_true", help="disable auto filtering for info/duplicate nodes")
     return p.parse_args()
 
 
@@ -818,6 +879,13 @@ def main() -> int:
     before_filter = len(nodes)
     nodes = [n for n in nodes if not is_bad_upstream_host(n.get("add", ""))]
     dropped_bad_host = before_filter - len(nodes)
+    dropped_info = 0
+    dropped_dup = 0
+    if not args.disable_smart_filter:
+        filtered, dropped_info, dropped_dup = smart_filter_nodes(nodes)
+        # 防止误杀：如果全过滤没了，就回退到原列表
+        if filtered:
+            nodes = filtered
 
     print(
         f"[info] parsed upstream nodes: {len(nodes)}, "
@@ -826,6 +894,8 @@ def main() -> int:
         f"from-yaml-ss: {len(yaml_ss_nodes)}, "
         f"skipped-yaml-ss-invalid: {yaml_ss_skipped}, "
         f"dropped-bad-host: {dropped_bad_host}, "
+        f"dropped-info-node: {dropped_info}, "
+        f"dropped-duplicate: {dropped_dup}, "
         f"skipped vmess-decode: {skipped['vmess']}, "
         f"skipped vless-decode: {skipped['vless']}, "
         f"skipped hy2-decode: {skipped['hy2']}, "
