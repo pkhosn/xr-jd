@@ -138,7 +138,23 @@ sudo python3 deploy_xrayr_wizard.py --rollback
 
 ---
 
-## 6. 参数说明
+## 6. 一键完全卸载
+
+执行以下命令可完全卸载 XrayR（服务 + 配置 + 程序目录）：
+
+```bash
+bash uninstall_all.sh
+```
+
+无确认直接卸载：
+
+```bash
+bash uninstall_all.sh --yes
+```
+
+---
+
+## 7. 参数说明
 
 - `--api-host`：面板地址
 - `--api-key`：面板密钥（敏感）
@@ -158,7 +174,7 @@ sudo python3 deploy_xrayr_wizard.py --rollback
 
 ---
 
-## 7. 运行后的验证
+## 8. 运行后的验证
 
 ```bash
 systemctl status XrayR --no-pager -l
@@ -176,7 +192,7 @@ journalctl -u XrayR -n 80 --no-pager
 
 ---
 
-## 8. 注意事项
+## 9. 注意事项
 
 1. `--apply` 需要 root 权限。
 2. 脚本会改写：
@@ -188,7 +204,7 @@ journalctl -u XrayR -n 80 --no-pager
 
 ---
 
-## 9. 模板文件（`/root/xrayr-parasitic/`）
+## 10. 模板文件（`/root/xrayr-parasitic/`）
 
 仓库已包含你要求的模板目录：
 
